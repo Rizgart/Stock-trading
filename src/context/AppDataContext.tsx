@@ -47,8 +47,8 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider = marketDa
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
   const [summary, setSummary] = useState<MarketSummary | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([
-    { symbol: 'ERIC', alertBelow: 60 },
-    { symbol: 'VOLV-B.ST', alertBelow: 230 }
+    { symbol: 'EVO', alertBelow: 1200 },
+    { symbol: 'VOLV B', alertBelow: 230 }
   ]);
   const [riskProfile, setRiskProfile] = useState<RiskProfile>('balanserad');
   const [sectors, setSectors] = useState<string[]>([]);
@@ -56,30 +56,25 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider = marketDa
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      try {
-        const newQuotes = await provider.getQuotes();
-        const summaryData = await provider.getMarketSummary();
-        const inputs = await Promise.all(
-          newQuotes.map(async (quote) => ({
-            quote,
-            history: await provider.getHistory(quote.symbol, '1y'),
-            fundamentals: await provider.getFundamentals(quote.symbol)
-          }))
-        );
-        setQuotes(newQuotes);
-        setSummary(summaryData);
-        const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
-        const computed = buildRecommendations(inputs, {
-          sectors: sectors.length > 0 ? sectors : undefined,
-          minScore,
-          maxVolatility
-        });
-        setRecommendations(computed);
-      } catch (error) {
-        console.error('Kunde inte hämta marknadsdata', error);
-      } finally {
-        setLoading(false);
-      }
+      const newQuotes = await provider.getQuotes();
+      const summaryData = await provider.getMarketSummary();
+      const inputs = await Promise.all(
+        newQuotes.map(async (quote) => ({
+          quote,
+          history: await provider.getHistory(quote.symbol, '1y'),
+          fundamentals: await provider.getFundamentals(quote.symbol)
+        }))
+      );
+      setQuotes(newQuotes);
+      setSummary(summaryData);
+      const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
+      const computed = buildRecommendations(inputs, {
+        sectors: sectors.length > 0 ? sectors : undefined,
+        minScore,
+        maxVolatility
+      });
+      setRecommendations(computed);
+      setLoading(false);
     };
 
     fetchData();
