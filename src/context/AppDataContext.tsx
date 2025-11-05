@@ -154,53 +154,68 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
           summaryData = await fallbackProvider.getMarketSummary();
         }
 
-        const detailResults: QuoteLoadResult[] = await Promise.all(
-          newQuotes.map(async (quote) => {
-            try {
-              const [history, fundamentals] = await Promise.all([
-                dataProvider.getHistory(quote.symbol, '1y'),
-                dataProvider.getFundamentals(quote.symbol)
-              ]);
-              return { quote, history, fundamentals, ok: true };
-            } catch (error) {
-              console.warn(`Misslyckades att ladda data för ${quote.symbol}, försöker fallback`, error);
+        const detailResults: QuoteLoadResult[] = [];
+        const batchSize = 5;
+
+        for (let index = 0; index < newQuotes.length; index += batchSize) {
+          if (!active) {
+            break;
+          }
+
+          const chunk = newQuotes.slice(index, index + batchSize);
+          const chunkResults = await Promise.all(
+            chunk.map(async (quote) => {
               try {
                 const [history, fundamentals] = await Promise.all([
-                  fallbackProvider.getHistory(quote.symbol, '1y'),
-                  fallbackProvider.getFundamentals(quote.symbol)
+                  dataProvider.getHistory(quote.symbol, '1y'),
+                  dataProvider.getFundamentals(quote.symbol)
                 ]);
-                return { quote, history, fundamentals, ok: true };
-              } catch (fallbackError) {
-                console.warn(`Fick ingen data för ${quote.symbol} ens med fallback`, fallbackError);
-                return { quote, ok: false };
+                return { quote, history, fundamentals, ok: true } as QuoteLoadResult;
+              } catch (error) {
+                console.warn(`Misslyckades att ladda data för ${quote.symbol}, försöker fallback`, error);
+                try {
+                  const [history, fundamentals] = await Promise.all([
+                    fallbackProvider.getHistory(quote.symbol, '1y'),
+                    fallbackProvider.getFundamentals(quote.symbol)
+                  ]);
+                  return { quote, history, fundamentals, ok: true } as QuoteLoadResult;
+                } catch (fallbackError) {
+                  console.warn(`Fick ingen data för ${quote.symbol} ens med fallback`, fallbackError);
+                  return { quote, ok: false } as QuoteLoadResult;
+                }
               }
-            }
-          })
-        );
+            })
+          );
 
-        const successfulQuotes = detailResults.filter((result) => result.ok) as Extract<QuoteLoadResult, { ok: true }>[];
+          detailResults.push(...chunkResults);
+        }
+
+        const successfulQuotes = detailResults.filter(
+          (result): result is Extract<QuoteLoadResult, { ok: true }> => result.ok
+        );
 
         if (!active) {
           return;
         }
 
         if (successfulQuotes.length === 0) {
-          throw new Error('Inga aktiedata kunde laddas vare sig live eller fallback.');
+          console.warn('Hittade inga fullständiga datapaket att analysera.');
+          setRecommendations([]);
+        } else {
+          const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
+          const computed = buildRecommendations(
+            successfulQuotes.map(({ quote, history, fundamentals }) => ({ quote, history, fundamentals })),
+            {
+              sectors: sectors.length > 0 ? sectors : undefined,
+              minScore,
+              maxVolatility
+            }
+          );
+          setRecommendations(computed);
         }
 
-        setQuotes(successfulQuotes.map((result) => result.quote));
+        setQuotes(newQuotes);
         setSummary(summaryData);
-
-        const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
-        const computed = buildRecommendations(
-          successfulQuotes.map(({ quote, history, fundamentals }) => ({ quote, history, fundamentals })),
-          {
-            sectors: sectors.length > 0 ? sectors : undefined,
-            minScore,
-            maxVolatility
-          }
-        );
-        setRecommendations(computed);
       } catch (error) {
         if (active) {
           console.error('Kunde inte hämta marknadsdata', error);

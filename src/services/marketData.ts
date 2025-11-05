@@ -230,12 +230,22 @@ type FinnhubSearchResponse = {
   }>;
 };
 
+type FinnhubSymbolResponse = Array<{
+  symbol: string;
+  description: string;
+  type: string;
+  currency: string;
+  figi?: string;
+}>;
+
 export class FinnhubMarketDataProvider implements MarketDataProvider {
   private readonly intradayTtl: number;
 
   private readonly eodTtl: number;
 
   private readonly defaultSymbols: string[];
+
+  private readonly trackedExchanges: string[];
 
   private readonly quoteCache: Map<string, CacheEntry<StockQuote>> = new Map();
 
@@ -245,6 +255,10 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
 
   private readonly profileCache: Map<string, CacheEntry<FinnhubProfileResponse>> = new Map();
 
+  private symbolUniverseCache: CacheEntry<string[]> | null = null;
+
+  private readonly symbolMetadata: Map<string, { description: string; currency: string }> = new Map();
+
   private readonly fallbackProvider = new MockMarketDataProvider();
 
   constructor(
@@ -253,6 +267,7 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
       intradayTtlMs?: number;
       eodTtlMs?: number;
       defaultSymbols?: string[];
+      exchanges?: string[];
       fetchImpl?: typeof fetch;
     } = {}
   ) {
@@ -264,13 +279,16 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
     this.intradayTtl = options.intradayTtlMs ?? DEFAULT_INTRADAY_TTL;
     this.eodTtl = options.eodTtlMs ?? DEFAULT_EOD_TTL;
     this.defaultSymbols = options.defaultSymbols ?? DEFAULT_SYMBOLS;
+    this.trackedExchanges = options.exchanges ?? ['US', 'ST'];
   }
 
   private readonly fetchImpl: typeof fetch;
 
   async getQuotes(symbols?: string[]): Promise<StockQuote[]> {
     const now = Date.now();
-    const targetSymbols = (symbols?.length ? symbols : this.defaultSymbols).map((symbol) => symbol.toUpperCase());
+    const targetSymbols = (
+      symbols?.length ? symbols : await this.resolveDefaultSymbols()
+    ).map((symbol) => symbol.toUpperCase());
     const uniqueSymbols = Array.from(new Set(targetSymbols));
     const quotes: StockQuote[] = [];
 
@@ -289,12 +307,12 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
 
         const stockQuote: StockQuote = {
           symbol,
-          name: profile?.name ?? symbol,
+          name: profile?.name ?? this.symbolMetadata.get(symbol)?.description ?? symbol,
           sector: profile?.finnhubIndustry ?? 'Okänd',
           price: quoteResponse.c ?? 0,
           changePct: Number((quoteResponse.dp ?? 0).toFixed(2)),
           volume: 0,
-          currency: profile?.currency ?? 'USD',
+          currency: profile?.currency ?? this.symbolMetadata.get(symbol)?.currency ?? 'USD',
           market: profile?.exchange
         };
 
@@ -541,6 +559,56 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
     }
 
     return (await response.json()) as T;
+  }
+
+  private async resolveDefaultSymbols(): Promise<string[]> {
+    const now = Date.now();
+    if (this.symbolUniverseCache && this.symbolUniverseCache.expires > now) {
+      return this.symbolUniverseCache.value;
+    }
+
+    const universes: FinnhubSymbolResponse[] = await Promise.all(
+      this.trackedExchanges.map(async (exchange) => {
+        try {
+          return await this.fetchJson<FinnhubSymbolResponse>('stock/symbol', { exchange });
+        } catch (error) {
+          console.warn(`Kunde inte hämta symboler för börs ${exchange}`, error);
+          return [];
+        }
+      })
+    );
+
+    const flat = universes.flat();
+    const symbols: string[] = [];
+    for (const entry of flat) {
+      const normalized = entry.symbol?.toUpperCase();
+      if (!normalized) {
+        continue;
+      }
+
+      if (!this.symbolMetadata.has(normalized)) {
+        this.symbolMetadata.set(normalized, {
+          description: entry.description ?? normalized,
+          currency: entry.currency ?? 'USD'
+        });
+      }
+
+      symbols.push(normalized);
+    }
+
+    const uniqueSymbols = Array.from(new Set(symbols));
+
+    if (uniqueSymbols.length === 0) {
+      console.warn('Symboluniversumet var tomt, använder standardlista.');
+      return this.defaultSymbols;
+    }
+
+    this.symbolUniverseCache = {
+      value: uniqueSymbols,
+      expires: now + this.eodTtl
+    };
+
+    return uniqueSymbols;
   }
 }
 
