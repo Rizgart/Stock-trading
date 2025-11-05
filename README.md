@@ -1,6 +1,7 @@
 # AktieTipset
 
 AktieTipset är en desktop-app byggd med Electron och React som analyserar ett urval av aktier, kombinerar tekniska indikatorer med fundamentala nyckeltal och genererar transparenta köprekommendationer. Prototypen innehåller en `MarketDataProvider` som kan växla mellan mockad data och en live-integration mot Finnhub (via personlig API-nyckel) och följer kontrakten i kravspecifikationen för att snabbt kunna kopplas till andra API:er som Nordnet eller Yahoo Finance.
+AktieTipset är en desktop-app byggd med Electron och React som analyserar ett urval av aktier, kombinerar tekniska indikatorer med fundamentala nyckeltal och genererar transparenta köprekommendationer. Prototypen använder mockad marknadsdata men följer kontrakten i kravspecifikationen för att snabbt kunna kopplas till riktiga API:er som Nordnet eller Yahoo Finance.
 
 ## Funktioner
 
@@ -41,11 +42,17 @@ AktieTipset är en desktop-app byggd med Electron och React som analyserar ett u
    npm install
    ```
 3. Starta utvecklingsläget (Vite + Electron):
+1. Installera beroenden:
+   ```bash
+   npm install
+   ```
+2. Starta utvecklingsläget (Vite + Electron):
    ```bash
    npm run dev
    ```
    - Render-processen körs på [http://localhost:5173](http://localhost:5173) och bäddas in i Electron.
 4. Kör enhetstester (Vitest):
+3. Kör enhetstester (Vitest):
    ```bash
    npm test
    ```
@@ -60,3 +67,20 @@ AktieTipset är en desktop-app byggd med Electron och React som analyserar ett u
 ## Ansvarsfriskrivning
 
 > AktieTipset ger information i utbildningssyfte och utgör inte personlig finansiell rådgivning. Historisk avkastning är ingen garanti för framtida resultat.
+En konceptuell desktop-applikation som analyserar aktier och genererar köprekommendationer med möjlighet att expandera till mobila plattformar. Projektet innehåller krav- och designunderlag för att kunna påbörja implementationen av AktieTipset.
+
+## Innehåll
+- `docs/aktietipset_spec.yaml` – Samlad kravspecifikation i YAML-format.
+
+## Snabböversikt
+- Målplattformar: macOS, Windows (desktop) med framtida stöd för iOS och Android.
+- UI-ramverk: Electron eller Tauri med React på desktop, samt React Native/Flutter som mobila alternativ.
+- Kärnfunktioner: aktierekommendationer, teknisk och fundamental analys, realtidsuppdateringar, watchlists, notifieringar och export.
+- Arkitektur: modulär lagerindelning (UI, applikationslogik, analysmotor, dataadaptrar, lokal databas) och gränssnitt för datakällor, scoring och notifieringar.
+- Datasäkerhet: krypterad lagring av tokens, TLS, GDPR-efterlevnad och tydliga ansvarsfriskrivningar.
+
+## Nästa steg
+1. Upprätta prototyp av UI-flöden med vald desktop-stack.
+2. Implementera `MarketDataProvider`-adapter mot vald marknadsdata-API (t.ex. Nordnet).
+3. Påbörja analysmotorn med tekniska indikatorer och rankingmodell.
+4. Etablera teststrategi inklusive enhetstester och backtesting enligt specifikationen.
