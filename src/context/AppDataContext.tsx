@@ -4,10 +4,7 @@ import {
   marketDataProvider,
   type MarketSummary,
   type StockQuote,
-  type MarketDataProvider,
-  MockMarketDataProvider,
-  type HistoricalCandle,
-  type FundamentalSnapshot
+  type MarketDataProvider
 } from '../services/marketData';
 
 export type RiskProfile = 'konservativ' | 'balanserad' | 'aggressiv';
@@ -44,26 +41,14 @@ const riskProfileScoreMap: Record<RiskProfile, { minScore: number; maxVolatility
   aggressiv: { minScore: 55, maxVolatility: 10 }
 };
 
-type QuoteLoadResult =
-  | {
-      quote: StockQuote;
-      history: HistoricalCandle[];
-      fundamentals: FundamentalSnapshot;
-      ok: true;
-    }
-  | {
-      quote: StockQuote;
-      ok: false;
-    };
-
 export const AppDataProvider: React.FC<Props> = ({ children, provider = marketDataProvider }) => {
   const [loading, setLoading] = useState(true);
   const [quotes, setQuotes] = useState<StockQuote[]>([]);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
   const [summary, setSummary] = useState<MarketSummary | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([
-    { symbol: 'ERIC', alertBelow: 60 },
-    { symbol: 'VOLV-B.ST', alertBelow: 230 }
+    { symbol: 'EVO', alertBelow: 1200 },
+    { symbol: 'VOLV B', alertBelow: 230 }
   ]);
   const [riskProfile, setRiskProfile] = useState<RiskProfile>('balanserad');
   const [sectors, setSectors] = useState<string[]>([]);
@@ -71,74 +56,25 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider = marketDa
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      try {
-        const fallbackProvider = new MockMarketDataProvider();
-
-        let newQuotes = await provider.getQuotes();
-        if (newQuotes.length === 0) {
-          console.warn('Inga realtidskurser kunde hämtas, använder fallback-data.');
-          newQuotes = await fallbackProvider.getQuotes();
-        }
-
-        let summaryData: MarketSummary | null = null;
-        try {
-          summaryData = await provider.getMarketSummary();
-        } catch (error) {
-          console.warn('Kunde inte hämta marknadssammanfattning', error);
-        }
-
-        if (!summaryData) {
-          summaryData = await fallbackProvider.getMarketSummary();
-        }
-
-        const detailResults: QuoteLoadResult[] = await Promise.all(
-          newQuotes.map(async (quote) => {
-            try {
-              const [history, fundamentals] = await Promise.all([
-                provider.getHistory(quote.symbol, '1y'),
-                provider.getFundamentals(quote.symbol)
-              ]);
-              return { quote, history, fundamentals, ok: true };
-            } catch (error) {
-              console.warn(`Misslyckades att ladda data för ${quote.symbol}, försöker fallback`, error);
-              try {
-                const [history, fundamentals] = await Promise.all([
-                  fallbackProvider.getHistory(quote.symbol, '1y'),
-                  fallbackProvider.getFundamentals(quote.symbol)
-                ]);
-                return { quote, history, fundamentals, ok: true };
-              } catch (fallbackError) {
-                console.warn(`Fick ingen data för ${quote.symbol} ens med fallback`, fallbackError);
-                return { quote, ok: false };
-              }
-            }
-          })
-        );
-
-        const successfulQuotes = detailResults.filter((result) => result.ok) as Extract<QuoteLoadResult, { ok: true }>[];
-
-        if (successfulQuotes.length === 0) {
-          throw new Error('Inga aktiedata kunde laddas vare sig live eller fallback.');
-        }
-
-        setQuotes(successfulQuotes.map((result) => result.quote));
-        setSummary(summaryData);
-
-        const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
-        const computed = buildRecommendations(
-          successfulQuotes.map(({ quote, history, fundamentals }) => ({ quote, history, fundamentals })),
-          {
-            sectors: sectors.length > 0 ? sectors : undefined,
-            minScore,
-            maxVolatility
-          }
-        );
-        setRecommendations(computed);
-      } catch (error) {
-        console.error('Kunde inte hämta marknadsdata', error);
-      } finally {
-        setLoading(false);
-      }
+      const newQuotes = await provider.getQuotes();
+      const summaryData = await provider.getMarketSummary();
+      const inputs = await Promise.all(
+        newQuotes.map(async (quote) => ({
+          quote,
+          history: await provider.getHistory(quote.symbol, '1y'),
+          fundamentals: await provider.getFundamentals(quote.symbol)
+        }))
+      );
+      setQuotes(newQuotes);
+      setSummary(summaryData);
+      const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
+      const computed = buildRecommendations(inputs, {
+        sectors: sectors.length > 0 ? sectors : undefined,
+        minScore,
+        maxVolatility
+      });
+      setRecommendations(computed);
+      setLoading(false);
     };
 
     fetchData();
