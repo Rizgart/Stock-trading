@@ -1,0 +1,183 @@
+app:
+  name: AktieTipset
+  description: "Desktop-app som analyserar aktier och ger köprekommendationer, med möjlighet att expandera till iOS/Android."
+  platforms:
+    desktop:
+      - macOS (Apple Silicon + Intel)
+      - Windows 10/11 (x64)
+    mobile_roadmap:
+      - iOS (Universal)
+      - Android
+  ui_framework:
+    desktop: "Electron eller Tauri + React"
+    mobile_optioner:
+      - React Native
+      - Flutter
+  languages:
+    - sv
+    - en
+
+core_features:
+  - "Ge tips om vilka aktier man ska köpa (rekommendationslista)."
+  - "Göra analyser (teknisk/fundamental) och motivera slutsats."
+  - "Löpande uppdateringar om hur aktierna utvecklas."
+  - "Bevaka bevakningslista/portfölj och signalera ändringar."
+  - "Sök & filter: bransch, marknad, P/E, volatilitet, m.m."
+  - "Favoriter & watchlists med notiser."
+  - "Export av rapport (PDF/CSV)."
+
+analysis_engine:
+  datatyper:
+    - "Prishistorik (OHLC, volym)"
+    - "Nyheter/sentiment (valfritt)"
+    - "Bolagsnyckeltal (P/E, P/S, ROE, skuldgrad)"
+    - "Marknadsindex & sektorjämförelser"
+  metoder:
+    teknisk:
+      - "Trenddetektering (MA, MACD, RSI)"
+      - "Momentum & breakout"
+      - "Volatilitet (ATR)"
+    fundamental:
+      - "Värdering mot historiskt snitt"
+      - "Tillväxt & lönsamhet"
+    ranking_modell:
+      input:
+        - tekniska signaler
+        - fundamentala nyckeltal
+        - risk/volatilitet
+        - likviditet
+      output: "Score 0–100 + köp/behåll/sälj-signal"
+      förklarbarhet: "Visa top-3 faktorer bakom varje rekommendation"
+  frekvens:
+    live: "När nya kurser inkommer"
+    batch: "Daglig sammanställning efter börsstängning"
+  begränsningar:
+    - "Ej finansiell rådgivning; visa tydlig disclaimer"
+
+data_integration:
+  källor:
+    primär_api: "Nordnet (exempel), alternativ: Yahoo Finance, Alpha Vantage, Euronext Nasdaq Nordics API"
+  krav:
+    - "OAuth2/nyckelhantering"
+    - "Hantering av rate limits & caching"
+    - "Retrier & backoff"
+  adapter_gränssnitt:
+    - name: MarketDataProvider
+      methods:
+        - get_quotes
+        - get_history
+        - get_fundamentals
+        - search_ticker
+  caching:
+    strategi: "In-memory + lokal SQLite"
+    ttl:
+      intraday: "15s–60s"
+      end_of_day: "24h"
+
+portfolio_uppföljning:
+  funktioner:
+    - "Importera innehav (CSV/API)"
+    - "P&L, avkastning, riskmått (beta, max drawdown)"
+    - "Alert-regler (prisnivå, procent, indikator-korsning)"
+  notiser:
+    kanaler:
+      - in-app
+      - desktop push
+      - "e-post (valfritt)"
+    tyst_läge: true
+
+ui_ux:
+  vyer:
+    - "Dashboard med dagens signaler & marknadssammanfattning"
+    - "Rekommendationer med filter/sortering"
+    - "Aktiedetaljvy (graf, nyckeltal, signaler, motivering)"
+    - "Watchlist/Portfölj"
+    - "Inställningar (API-nycklar, riskprofil, språk)"
+  tillgänglighet:
+    - tangentbordsnavigering
+    - kontrastläge
+    - textstorlek
+
+säkerhet_integritet:
+  auth: "Lokal krypterad lagring av tokens (Keychain/DPAPI)"
+  data: "Endast nödvändig lagring, kryptering at-rest & in-transit (TLS)"
+  regelefterlevnad:
+    - "GDPR (samtycke, radera data)"
+    - "MiFID-ansvarsfriskrivning"
+
+arkitektur:
+  lager:
+    - "UI (React)"
+    - "App-logik (TypeScript)"
+    - "Analysmotor (TypeScript/Node eller Python via gRPC/IPC)"
+    - "Datakälla-adaptrar"
+    - "Lokal databas (SQLite)"
+  modulära_gränssnitt:
+    - DataProvider
+    - ScoringService
+    - NotificationService
+  mobil_expansion:
+    delade_komponenter:
+      - "Affärslogik"
+      - "Analys via backend/mikrotjänst"
+    backend_api: "REST/GraphQL för mobila klienter (om behövs)"
+
+prestanda_krav:
+  uppstartstid_ms: 1500
+  graf_render_ms: 120
+  max_minne_mb: 400
+  datatäthet: "Miljoner datapunkter via nedsampling"
+
+kvalitet_test:
+  enhetstester: "80% täckning kärnlogik"
+  e2e:
+    - "kritiska flöden: import, ranking, alert"
+  backtesting:
+    perioder:
+      - 1y
+      - 3y
+      - 5y
+      - 10y
+    mått:
+      - CAGR
+      - Sharpe
+      - MaxDD
+      - WinRate
+    robusthet: "Walk-forward & out-of-sample"
+
+distribution:
+  paketering:
+    - "MSIX/EXE för Windows"
+    - "DMG för macOS (notarized)"
+  uppdateringar: "Auto-updates med signering"
+  miljöer:
+    - Dev
+    - Beta
+    - Prod
+
+juridik_disclaimer:
+  text: "Appen ger informations- och utbildningssyfte, ej personlig finansiell rådgivning. Historisk avkastning garanterar ej framtida resultat."
+
+roadmap:
+  mvp:
+    - "Realtidskurser + historik"
+    - "Grundläggande tekniska signaler"
+    - "Ranking & rekommendationer (förklaringar)"
+    - "Watchlist + notiser"
+    - "Nordnet-integration (läsa data)"
+  v1_1:
+    - "Fundamentalanalys & sektormodeller"
+    - "Portföljimport & P&L"
+  v1_2:
+    - "Nyheter/sentiment"
+    - "PDF-rapport & export"
+  mobile_pilot:
+    - "Läs-läge (watchlist, pushnotiser)"
+    - "Lättviktiga rekommendationer"
+
+acceptanskriterier:
+  - "Användare kan koppla API-nyckel och se kurser inom 1 minut."
+  - "Minst 3 tekniska indikatorer och 3 fundamentala nyckeltal ingår i ranking."
+  - "Varje rekommendation visar kort motivering (top-3 faktorer)."
+  - "Notiser triggas inom 10 sek efter villkor uppfylls."
+  - "Backtest-rapport kan genereras för valfri lista med minst 5 års historik."

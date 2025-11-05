@@ -1,1 +1,56 @@
-# Stock-trading
+# AktieTipset
+
+AktieTipset är en desktop-app byggd med Electron och React som analyserar ett urval av aktier, kombinerar tekniska indikatorer med fundamentala nyckeltal och genererar transparenta köprekommendationer. Prototypen använder mockad marknadsdata men följer kontrakten i kravspecifikationen för att snabbt kunna kopplas till riktiga API:er som Nordnet eller Yahoo Finance.
+
+## Funktioner
+
+- **Rekommendationsmotor** – Rankar aktier baserat på MA20/50/200, RSI, ATR, ROE, P/E, skuldgrad m.m. och väger samman till ett poängintervall 0–100 med köp/behåll/sälj-signal och top-3 motiveringar.
+- **Dashboard** – Ger snabb överblick av marknadssammanfattning, toppval och bevakningslista.
+- **Watchlist** – Hantera bevakade bolag, se realtidsuppdaterade priser och nuvarande signal.
+- **Filter & riskprofiler** – Växla mellan konservativ, balanserad och aggressiv profil för att påverka ranking och volatilitetstolerans, samt filtrera på sektorer och sök.
+- **Inställningar** – Formulär för API-nycklar, språk och översikt över datahantering (OAuth2, caching, retrier).
+- **Diskret ansvarsfriskrivning** – Tydlig text i sidopanelen som påminner om att appen inte ger finansiell rådgivning.
+
+## Projektstruktur
+
+```
+├── electron/             # Huvud- och preload-process för Electron
+├── public/               # Statisk tillgång (ikon)
+├── src/
+│   ├── analysis/         # Indikatorer och rankingmodell
+│   ├── components/       # Layout och UI-komponenter
+│   ├── context/          # Globalt tillstånd, marknadsdata och inställningar
+│   ├── data/             # Mockad marknadsdata för prototypen
+│   ├── services/         # MarketDataProvider-kontrakt och cache
+│   ├── utils/            # Formatteringshjälpare
+│   └── views/            # Dashboard, rekommendationer, watchlist, inställningar
+├── tests/                # Vitest-enhetstester för analysmotorn
+└── docs/                 # Kravspecifikationer och arkitekturdokument
+```
+
+## Kom igång
+
+1. Installera beroenden:
+   ```bash
+   npm install
+   ```
+2. Starta utvecklingsläget (Vite + Electron):
+   ```bash
+   npm run dev
+   ```
+   - Render-processen körs på [http://localhost:5173](http://localhost:5173) och bäddas in i Electron.
+3. Kör enhetstester (Vitest):
+   ```bash
+   npm test
+   ```
+
+## Nästa steg
+
+- Koppla `MarketDataProvider` till en riktig datakälla (OAuth2, caching med SQLite, rate-limit hantering).
+- Utöka analysmotorn med sektorjämförelser, fundamentala modeller och backtesting enligt `docs/aktietipset_spec.yaml`.
+- Implementera notifieringar (desktop push/e-post), portföljimport och rapportexport.
+- Förbered CI/CD-pipeline med enhetstester, E2E och byggsteg för Windows/macOS distributabler.
+
+## Ansvarsfriskrivning
+
+> AktieTipset ger information i utbildningssyfte och utgör inte personlig finansiell rådgivning. Historisk avkastning är ingen garanti för framtida resultat.
