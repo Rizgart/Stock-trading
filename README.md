@@ -1,5 +1,6 @@
 # AktieTipset
 
+AktieTipset är en desktop-app byggd med Electron och React som analyserar ett urval av aktier, kombinerar tekniska indikatorer med fundamentala nyckeltal och genererar transparenta köprekommendationer. Prototypen innehåller en `MarketDataProvider` som kan växla mellan mockad data och en live-integration mot Finnhub (via personlig API-nyckel) och följer kontrakten i kravspecifikationen för att snabbt kunna kopplas till andra API:er som Nordnet eller Yahoo Finance.
 AktieTipset är en desktop-app byggd med Electron och React som analyserar ett urval av aktier, kombinerar tekniska indikatorer med fundamentala nyckeltal och genererar transparenta köprekommendationer. Prototypen använder mockad marknadsdata men följer kontrakten i kravspecifikationen för att snabbt kunna kopplas till riktiga API:er som Nordnet eller Yahoo Finance.
 
 ## Funktioner
@@ -30,6 +31,17 @@ AktieTipset är en desktop-app byggd med Electron och React som analyserar ett u
 
 ## Kom igång
 
+1. Kopiera `.env.example` till `.env` och fyll i din Finnhub-nyckel (behövs för live-data):
+   ```bash
+   cp .env.example .env
+   # öppna .env och ersätt 'din_finnhub_nyckel' med din riktiga nyckel
+   ```
+   Om `VITE_FINNHUB_API_KEY` saknas används mockad data som fallback.
+2. Installera beroenden:
+   ```bash
+   npm install
+   ```
+3. Starta utvecklingsläget (Vite + Electron):
 1. Installera beroenden:
    ```bash
    npm install
@@ -39,6 +51,7 @@ AktieTipset är en desktop-app byggd med Electron och React som analyserar ett u
    npm run dev
    ```
    - Render-processen körs på [http://localhost:5173](http://localhost:5173) och bäddas in i Electron.
+4. Kör enhetstester (Vitest):
 3. Kör enhetstester (Vitest):
    ```bash
    npm test
