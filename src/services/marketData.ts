@@ -53,10 +53,8 @@ type CacheEntry<T> = {
 
 const DEFAULT_INTRADAY_TTL = 30 * 1000;
 const DEFAULT_EOD_TTL = 24 * 60 * 60 * 1000;
-const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 const DEFAULT_SYMBOLS = ['AAPL', 'MSFT', 'TSLA', 'NVDA', 'ERIC', 'VOLV-B.ST'];
-const DEFAULT_SYMBOL_LIMIT = 200;
-const DEFAULT_FETCH_CONCURRENCY = 5;
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
 
 export class MockMarketDataProvider implements MarketDataProvider {
   private quoteCache: CacheEntry<StockQuote[]> | null = null;
@@ -261,14 +259,6 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
 
   private readonly symbolMetadata: Map<string, { description: string; currency: string }> = new Map();
 
-  private readonly maxSymbolsPerRequest: number;
-
-  private readonly fetchConcurrency: number;
-
-  private pendingSymbolQueue: string[] = [];
-
-  private pendingSymbolSet: Set<string> = new Set();
-
   private readonly fallbackProvider = new MockMarketDataProvider();
 
   constructor(
@@ -278,8 +268,6 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
       eodTtlMs?: number;
       defaultSymbols?: string[];
       exchanges?: string[];
-      symbolLimit?: number;
-      fetchConcurrency?: number;
       fetchImpl?: typeof fetch;
     } = {}
   ) {
@@ -292,11 +280,6 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
     this.eodTtl = options.eodTtlMs ?? DEFAULT_EOD_TTL;
     this.defaultSymbols = options.defaultSymbols ?? DEFAULT_SYMBOLS;
     this.trackedExchanges = options.exchanges ?? ['US', 'ST'];
-    this.maxSymbolsPerRequest = Math.max(
-      5,
-      Math.min(options.symbolLimit ?? DEFAULT_SYMBOL_LIMIT, 2000)
-    );
-    this.fetchConcurrency = Math.max(1, options.fetchConcurrency ?? DEFAULT_FETCH_CONCURRENCY);
   }
 
   private readonly fetchImpl: typeof fetch;
@@ -308,29 +291,48 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
     ).map((symbol) => symbol.toUpperCase());
     const uniqueSymbols = Array.from(new Set(targetSymbols));
     const quotes: StockQuote[] = [];
-    const staleSymbols: string[] = [];
 
     for (const symbol of uniqueSymbols) {
       const cached = this.quoteCache.get(symbol);
       if (cached && cached.expires > now) {
         quotes.push(cached.value);
-      } else {
-        staleSymbols.push(symbol);
+        continue;
+      }
+
+      try {
+        const [quoteResponse, profile] = await Promise.all([
+          this.fetchJson<FinnhubQuoteResponse>('quote', { symbol }),
+          this.getProfile(symbol)
+        ]);
+
+        const stockQuote: StockQuote = {
+          symbol,
+          name: profile?.name ?? this.symbolMetadata.get(symbol)?.description ?? symbol,
+          sector: profile?.finnhubIndustry ?? 'Okänd',
+          price: quoteResponse.c ?? 0,
+          changePct: Number((quoteResponse.dp ?? 0).toFixed(2)),
+          volume: 0,
+          currency: profile?.currency ?? this.symbolMetadata.get(symbol)?.currency ?? 'USD',
+          market: profile?.exchange
+        };
+
+        this.quoteCache.set(symbol, {
+          value: stockQuote,
+          expires: now + this.intradayTtl
+        });
+
+        quotes.push(stockQuote);
+      } catch (error) {
+        console.warn(`Finnhub quote lookup failed for ${symbol}`, error);
+        const fallback = await this.fallbackProvider.getQuotes([symbol]);
+        if (fallback.length > 0) {
+          quotes.push(fallback[0]);
+        }
       }
     }
 
-    if (symbols?.length) {
-      const fetched = await this.fetchQuotesForSymbols(staleSymbols);
-      quotes.push(...fetched);
-    } else {
-      this.enqueueSymbols(staleSymbols);
-      const symbolsToFetch = this.dequeueSymbols(this.maxSymbolsPerRequest);
-      const fetched = await this.fetchQuotesForSymbols(symbolsToFetch);
-      quotes.push(...fetched);
-    }
-
     const bySymbol = new Map(quotes.map((quote) => [quote.symbol, quote]));
-    return uniqueSymbols
+    return targetSymbols
       .map((symbol) => bySymbol.get(symbol))
       .filter((quote): quote is StockQuote => Boolean(quote));
   }
@@ -605,114 +607,17 @@ export class FinnhubMarketDataProvider implements MarketDataProvider {
       value: uniqueSymbols,
       expires: now + this.eodTtl
     };
-    this.pendingSymbolQueue = [];
-    this.pendingSymbolSet.clear();
-    this.enqueueSymbols(uniqueSymbols);
 
     return uniqueSymbols;
-  }
-
-  private enqueueSymbols(symbols: string[]) {
-    for (const symbol of symbols) {
-      if (!this.pendingSymbolSet.has(symbol)) {
-        this.pendingSymbolQueue.push(symbol);
-        this.pendingSymbolSet.add(symbol);
-      }
-    }
-  }
-
-  private dequeueSymbols(count: number): string[] {
-    if (count <= 0) {
-      return [];
-    }
-
-    const items = this.pendingSymbolQueue.splice(0, count);
-    for (const symbol of items) {
-      this.pendingSymbolSet.delete(symbol);
-    }
-    return items;
-  }
-
-  private async fetchQuotesForSymbols(symbols: string[]): Promise<StockQuote[]> {
-    if (symbols.length === 0) {
-      return [];
-    }
-
-    const results: StockQuote[] = [];
-
-    for (let index = 0; index < symbols.length; index += this.fetchConcurrency) {
-      const batch = symbols.slice(index, index + this.fetchConcurrency);
-      const batchResults = await Promise.all(
-        batch.map(async (symbol) => this.fetchQuoteForSymbol(symbol).catch(() => null))
-      );
-
-      for (const quote of batchResults) {
-        if (quote) {
-          results.push(quote);
-        }
-      }
-    }
-
-    return results;
-  }
-
-  private async fetchQuoteForSymbol(symbol: string): Promise<StockQuote | null> {
-    const normalized = symbol.toUpperCase();
-    const now = Date.now();
-
-    try {
-      const [quoteResponse, profile] = await Promise.all([
-        this.fetchJson<FinnhubQuoteResponse>('quote', { symbol: normalized }),
-        this.getProfile(normalized)
-      ]);
-
-      const stockQuote: StockQuote = {
-        symbol: normalized,
-        name: profile?.name ?? this.symbolMetadata.get(normalized)?.description ?? normalized,
-        sector: profile?.finnhubIndustry ?? 'Okänd',
-        price: quoteResponse.c ?? 0,
-        changePct: Number((quoteResponse.dp ?? 0).toFixed(2)),
-        volume: 0,
-        currency: profile?.currency ?? this.symbolMetadata.get(normalized)?.currency ?? 'USD',
-        market: profile?.exchange
-      };
-
-      this.quoteCache.set(normalized, {
-        value: stockQuote,
-        expires: now + this.intradayTtl
-      });
-
-      return stockQuote;
-    } catch (error) {
-      console.warn(`Finnhub quote lookup failed for ${normalized}`, error);
-      const fallback = await this.fallbackProvider.getQuotes([normalized]);
-      if (fallback.length > 0) {
-        this.quoteCache.set(normalized, {
-          value: fallback[0],
-          expires: now + this.intradayTtl
-        });
-        return fallback[0];
-      }
-
-      this.enqueueSymbols([normalized]);
-      return null;
-    }
   }
 }
 
 const envApiKey = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_FINNHUB_API_KEY : undefined;
 
-export const createMarketDataProvider = (
-  apiKey: string | undefined = envApiKey,
-  options: {
-    symbolLimit?: number;
-  } = {}
-): MarketDataProvider => {
+export const createMarketDataProvider = (apiKey: string | undefined = envApiKey): MarketDataProvider => {
   if (apiKey) {
     try {
-      return new FinnhubMarketDataProvider(apiKey, {
-        symbolLimit: options.symbolLimit
-      });
+      return new FinnhubMarketDataProvider(apiKey);
     } catch (error) {
       console.error('Kunde inte initiera FinnhubMarketDataProvider, faller tillbaka till mock-data', error);
     }

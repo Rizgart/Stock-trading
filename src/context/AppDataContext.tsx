@@ -4,7 +4,6 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState
 } from 'react';
 import { buildRecommendations, type StockRecommendation } from '../analysis/ranking';
@@ -35,11 +34,9 @@ interface AppState {
   riskProfile: RiskProfile;
   sectors: string[];
   apiKey: string;
-  symbolLimit: number;
   toggleWatchlist: (symbol: string) => void;
   updateRiskProfile: (profile: RiskProfile) => void;
   updateApiKey: (apiKey: string) => void;
-  updateSymbolLimit: (limit: number) => void;
   setSectors: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
@@ -69,8 +66,6 @@ type QuoteLoadResult =
     };
 
 const API_KEY_STORAGE_KEY = 'aktietipset.finnhubApiKey';
-const SYMBOL_LIMIT_STORAGE_KEY = 'aktietipset.symbolLimit';
-const DEFAULT_SYMBOL_LIMIT = 150;
 
 const readStoredApiKey = (): string => {
   if (typeof window === 'undefined') {
@@ -82,27 +77,6 @@ const readStoredApiKey = (): string => {
   } catch (error) {
     console.warn('Kunde inte läsa API-nyckel från localStorage', error);
     return '';
-  }
-};
-
-const readStoredSymbolLimit = (): number => {
-  if (typeof window === 'undefined') {
-    return DEFAULT_SYMBOL_LIMIT;
-  }
-
-  try {
-    const stored = window.localStorage.getItem(SYMBOL_LIMIT_STORAGE_KEY);
-    if (!stored) {
-      return DEFAULT_SYMBOL_LIMIT;
-    }
-    const parsed = Number.parseInt(stored, 10);
-    if (Number.isNaN(parsed) || parsed <= 0) {
-      return DEFAULT_SYMBOL_LIMIT;
-    }
-    return Math.min(parsed, 2000);
-  } catch (error) {
-    console.warn('Kunde inte läsa symbolbegränsning från localStorage', error);
-    return DEFAULT_SYMBOL_LIMIT;
   }
 };
 
@@ -118,16 +92,14 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
   const [riskProfile, setRiskProfile] = useState<RiskProfile>('balanserad');
   const [sectors, setSectors] = useState<string[]>([]);
   const [apiKey, setApiKey] = useState<string>(() => readStoredApiKey());
-  const [symbolLimit, setSymbolLimit] = useState<number>(() => readStoredSymbolLimit());
-  const usingFallbackRef = useRef(false);
 
   const dataProvider = useMemo(() => {
     if (provider) {
       return provider;
     }
 
-    return createMarketDataProvider(apiKey || undefined, { symbolLimit });
-  }, [provider, apiKey, symbolLimit]);
+    return createMarketDataProvider(apiKey || undefined);
+  }, [provider, apiKey]);
 
   useEffect(() => {
     if (provider) {
@@ -149,31 +121,8 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
     }
   }, [apiKey, provider]);
 
-  useEffect(() => {
-    if (provider) {
-      return;
-    }
-
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(SYMBOL_LIMIT_STORAGE_KEY, String(symbolLimit));
-    } catch (error) {
-      console.warn('Kunde inte spara symbolbegränsning i localStorage', error);
-    }
-  }, [symbolLimit, provider]);
-
   const updateApiKey = useCallback((key: string) => {
     setApiKey(key.trim());
-  }, []);
-
-  const updateSymbolLimit = useCallback((limit: number) => {
-    setSymbolLimit((current) => {
-      const next = Number.isFinite(limit) ? Math.max(25, Math.min(Math.floor(limit), 2000)) : current;
-      return next;
-    });
   }, []);
 
   useEffect(() => {
@@ -187,14 +136,11 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
       setLoading(true);
       try {
         const fallbackProvider = new MockMarketDataProvider();
-        const wasUsingFallback = usingFallbackRef.current;
 
-        let chunkQuotes = await dataProvider.getQuotes();
-        let usedFallbackQuotes = false;
-        if (chunkQuotes.length === 0) {
+        let newQuotes = await dataProvider.getQuotes();
+        if (newQuotes.length === 0) {
           console.warn('Inga realtidskurser kunde hämtas, använder fallback-data.');
-          chunkQuotes = await fallbackProvider.getQuotes();
-          usedFallbackQuotes = true;
+          newQuotes = await fallbackProvider.getQuotes();
         }
 
         let summaryData: MarketSummary | null = null;
@@ -211,14 +157,12 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
         const detailResults: QuoteLoadResult[] = [];
         const batchSize = 5;
 
-        const analysisTargets = chunkQuotes.slice(0, 40);
-
-        for (let index = 0; index < analysisTargets.length; index += batchSize) {
+        for (let index = 0; index < newQuotes.length; index += batchSize) {
           if (!active) {
             break;
           }
 
-          const chunk = analysisTargets.slice(index, index + batchSize);
+          const chunk = newQuotes.slice(index, index + batchSize);
           const chunkResults = await Promise.all(
             chunk.map(async (quote) => {
               try {
@@ -270,19 +214,7 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
           setRecommendations(computed);
         }
 
-        setQuotes((current) => {
-          if (usedFallbackQuotes) {
-            return chunkQuotes;
-          }
-
-          const base = wasUsingFallback ? [] : current;
-          const merged = new Map(base.map((quote) => [quote.symbol, quote]));
-          chunkQuotes.forEach((quote) => {
-            merged.set(quote.symbol, quote);
-          });
-          return Array.from(merged.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
-        });
-        usingFallbackRef.current = usedFallbackQuotes;
+        setQuotes(newQuotes);
         setSummary(summaryData);
       } catch (error) {
         if (active) {
@@ -323,26 +255,12 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
       riskProfile,
       sectors,
       apiKey,
-      symbolLimit,
       toggleWatchlist,
       updateRiskProfile: setRiskProfile,
       updateApiKey,
-      updateSymbolLimit,
       setSectors
     }),
-    [
-      loading,
-      quotes,
-      recommendations,
-      summary,
-      watchlist,
-      riskProfile,
-      sectors,
-      apiKey,
-      symbolLimit,
-      updateApiKey,
-      updateSymbolLimit
-    ]
+    [loading, quotes, recommendations, summary, watchlist, riskProfile, sectors, apiKey, updateApiKey]
   );
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

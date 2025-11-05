@@ -2,21 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAppData } from '../context/AppDataContext';
 
 const SettingsView: React.FC = () => {
-  const { riskProfile, updateRiskProfile, apiKey, updateApiKey, symbolLimit, updateSymbolLimit } =
-    useAppData();
+  const { riskProfile, updateRiskProfile, apiKey, updateApiKey } = useAppData();
   const [language, setLanguage] = useState<'sv' | 'en'>('sv');
   const [formValue, setFormValue] = useState('');
   const [status, setStatus] = useState<'idle' | 'saved'>('idle');
   const resetTimerRef = useRef<number | null>(null);
-  const [limitValue, setLimitValue] = useState<string>('');
 
   useEffect(() => {
     setFormValue(apiKey ?? '');
   }, [apiKey]);
-
-  useEffect(() => {
-    setLimitValue(String(symbolLimit));
-  }, [symbolLimit]);
 
   useEffect(() => {
     return () => {
@@ -63,39 +57,6 @@ const SettingsView: React.FC = () => {
             Spara nyckel
           </button>
           {status === 'saved' ? <span className="success-text">Nyckeln sparades! Data laddas om automatiskt.</span> : null}
-          <label>
-            <span>Max antal symboler per uppdatering</span>
-            <input
-              type="number"
-              min={25}
-              max={2000}
-              step={25}
-              value={limitValue}
-              onChange={(event) => {
-                setLimitValue(event.target.value);
-                setStatus('idle');
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  const parsed = Number.parseInt(event.currentTarget.value, 10);
-                  if (!Number.isNaN(parsed)) {
-                    updateSymbolLimit(parsed);
-                  }
-                }
-              }}
-              onBlur={(event) => {
-                const parsed = Number.parseInt(event.currentTarget.value, 10);
-                if (!Number.isNaN(parsed)) {
-                  updateSymbolLimit(parsed);
-                }
-              }}
-            />
-            <small>
-              Appen laddar symboler i omgångar för att respektera Finnhubs rate limits. Öka värdet om du har en
-              högre plan och vill läsa in fler samtidigt.
-            </small>
-          </label>
           <label>
             <span>Språk</span>
             <select value={language} onChange={(event) => setLanguage(event.target.value as 'sv' | 'en')}>
