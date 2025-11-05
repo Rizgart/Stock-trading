@@ -1,10 +1,34 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppData } from '../context/AppDataContext';
 
 const SettingsView: React.FC = () => {
-  const { riskProfile, updateRiskProfile } = useAppData();
-  const [apiKey, setApiKey] = useState('');
+  const { riskProfile, updateRiskProfile, apiKey, updateApiKey } = useAppData();
   const [language, setLanguage] = useState<'sv' | 'en'>('sv');
+  const [formValue, setFormValue] = useState('');
+  const [status, setStatus] = useState<'idle' | 'saved'>('idle');
+  const resetTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setFormValue(apiKey ?? '');
+  }, [apiKey]);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) {
+        window.clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    updateApiKey(formValue);
+    setStatus('saved');
+    if (resetTimerRef.current) {
+      window.clearTimeout(resetTimerRef.current);
+    }
+    resetTimerRef.current = window.setTimeout(() => setStatus('idle'), 2500);
+  };
 
   return (
     <div className="stack">
@@ -13,19 +37,26 @@ const SettingsView: React.FC = () => {
           <h1>Inställningar</h1>
           <span>Hantera API-nycklar, språk och riskparametrar</span>
         </header>
-        <form className="form">
+        <form className="form" onSubmit={handleSubmit}>
           <label>
-            <span>API-nyckel (Nordnet/Yahoo)</span>
+            <span>API-nyckel (Finnhub)</span>
             <input
               type="password"
               placeholder="Klistra in din API-nyckel"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
+              value={formValue}
+              onChange={(event) => {
+                setFormValue(event.target.value);
+                setStatus('idle');
+              }}
             />
             <small>
               Nyckeln lagras krypterat lokalt (Keychain/DPAPI) i den riktiga versionen av appen.
             </small>
           </label>
+          <button type="submit" className="primary">
+            Spara nyckel
+          </button>
+          {status === 'saved' ? <span className="success-text">Nyckeln sparades! Data laddas om automatiskt.</span> : null}
           <label>
             <span>Språk</span>
             <select value={language} onChange={(event) => setLanguage(event.target.value as 'sv' | 'en')}>

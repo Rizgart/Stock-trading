@@ -1,10 +1,20 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState
+} from 'react';
 import { buildRecommendations, type StockRecommendation } from '../analysis/ranking';
 import {
-  marketDataProvider,
+  createMarketDataProvider,
   type MarketSummary,
   type StockQuote,
-  type MarketDataProvider
+  type MarketDataProvider,
+  MockMarketDataProvider,
+  type HistoricalCandle,
+  type FundamentalSnapshot
 } from '../services/marketData';
 
 export type RiskProfile = 'konservativ' | 'balanserad' | 'aggressiv';
@@ -23,8 +33,10 @@ interface AppState {
   watchlist: WatchlistEntry[];
   riskProfile: RiskProfile;
   sectors: string[];
+  apiKey: string;
   toggleWatchlist: (symbol: string) => void;
   updateRiskProfile: (profile: RiskProfile) => void;
+  updateApiKey: (apiKey: string) => void;
   setSectors: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
@@ -41,46 +53,172 @@ const riskProfileScoreMap: Record<RiskProfile, { minScore: number; maxVolatility
   aggressiv: { minScore: 55, maxVolatility: 10 }
 };
 
-export const AppDataProvider: React.FC<Props> = ({ children, provider = marketDataProvider }) => {
+type QuoteLoadResult =
+  | {
+      quote: StockQuote;
+      history: HistoricalCandle[];
+      fundamentals: FundamentalSnapshot;
+      ok: true;
+    }
+  | {
+      quote: StockQuote;
+      ok: false;
+    };
+
+const API_KEY_STORAGE_KEY = 'aktietipset.finnhubApiKey';
+
+const readStoredApiKey = (): string => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    return window.localStorage.getItem(API_KEY_STORAGE_KEY) ?? '';
+  } catch (error) {
+    console.warn('Kunde inte läsa API-nyckel från localStorage', error);
+    return '';
+  }
+};
+
+export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
   const [loading, setLoading] = useState(true);
   const [quotes, setQuotes] = useState<StockQuote[]>([]);
   const [recommendations, setRecommendations] = useState<StockRecommendation[]>([]);
   const [summary, setSummary] = useState<MarketSummary | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistEntry[]>([
-    { symbol: 'EVO', alertBelow: 1200 },
-    { symbol: 'VOLV B', alertBelow: 230 }
+    { symbol: 'ERIC', alertBelow: 60 },
+    { symbol: 'VOLV-B.ST', alertBelow: 230 }
   ]);
   const [riskProfile, setRiskProfile] = useState<RiskProfile>('balanserad');
   const [sectors, setSectors] = useState<string[]>([]);
+  const [apiKey, setApiKey] = useState<string>(() => readStoredApiKey());
+
+  const dataProvider = useMemo(() => {
+    if (provider) {
+      return provider;
+    }
+
+    return createMarketDataProvider(apiKey || undefined);
+  }, [provider, apiKey]);
 
   useEffect(() => {
+    if (provider) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      if (apiKey) {
+        window.localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+      } else {
+        window.localStorage.removeItem(API_KEY_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.warn('Kunde inte spara API-nyckel i localStorage', error);
+    }
+  }, [apiKey, provider]);
+
+  const updateApiKey = useCallback((key: string) => {
+    setApiKey(key.trim());
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
     const fetchData = async () => {
+      if (!active) {
+        return;
+      }
+
       setLoading(true);
-      const newQuotes = await provider.getQuotes();
-      const summaryData = await provider.getMarketSummary();
-      const inputs = await Promise.all(
-        newQuotes.map(async (quote) => ({
-          quote,
-          history: await provider.getHistory(quote.symbol, '1y'),
-          fundamentals: await provider.getFundamentals(quote.symbol)
-        }))
-      );
-      setQuotes(newQuotes);
-      setSummary(summaryData);
-      const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
-      const computed = buildRecommendations(inputs, {
-        sectors: sectors.length > 0 ? sectors : undefined,
-        minScore,
-        maxVolatility
-      });
-      setRecommendations(computed);
-      setLoading(false);
+      try {
+        const fallbackProvider = new MockMarketDataProvider();
+
+        let newQuotes = await dataProvider.getQuotes();
+        if (newQuotes.length === 0) {
+          console.warn('Inga realtidskurser kunde hämtas, använder fallback-data.');
+          newQuotes = await fallbackProvider.getQuotes();
+        }
+
+        let summaryData: MarketSummary | null = null;
+        try {
+          summaryData = await dataProvider.getMarketSummary();
+        } catch (error) {
+          console.warn('Kunde inte hämta marknadssammanfattning', error);
+        }
+
+        if (!summaryData) {
+          summaryData = await fallbackProvider.getMarketSummary();
+        }
+
+        const detailResults: QuoteLoadResult[] = await Promise.all(
+          newQuotes.map(async (quote) => {
+            try {
+              const [history, fundamentals] = await Promise.all([
+                dataProvider.getHistory(quote.symbol, '1y'),
+                dataProvider.getFundamentals(quote.symbol)
+              ]);
+              return { quote, history, fundamentals, ok: true };
+            } catch (error) {
+              console.warn(`Misslyckades att ladda data för ${quote.symbol}, försöker fallback`, error);
+              try {
+                const [history, fundamentals] = await Promise.all([
+                  fallbackProvider.getHistory(quote.symbol, '1y'),
+                  fallbackProvider.getFundamentals(quote.symbol)
+                ]);
+                return { quote, history, fundamentals, ok: true };
+              } catch (fallbackError) {
+                console.warn(`Fick ingen data för ${quote.symbol} ens med fallback`, fallbackError);
+                return { quote, ok: false };
+              }
+            }
+          })
+        );
+
+        const successfulQuotes = detailResults.filter((result) => result.ok) as Extract<QuoteLoadResult, { ok: true }>[];
+
+        if (!active) {
+          return;
+        }
+
+        if (successfulQuotes.length === 0) {
+          throw new Error('Inga aktiedata kunde laddas vare sig live eller fallback.');
+        }
+
+        setQuotes(successfulQuotes.map((result) => result.quote));
+        setSummary(summaryData);
+
+        const { minScore, maxVolatility } = riskProfileScoreMap[riskProfile];
+        const computed = buildRecommendations(
+          successfulQuotes.map(({ quote, history, fundamentals }) => ({ quote, history, fundamentals })),
+          {
+            sectors: sectors.length > 0 ? sectors : undefined,
+            minScore,
+            maxVolatility
+          }
+        );
+        setRecommendations(computed);
+      } catch (error) {
+        if (active) {
+          console.error('Kunde inte hämta marknadsdata', error);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
     };
 
     fetchData();
     const interval = setInterval(fetchData, 60_000);
-    return () => clearInterval(interval);
-  }, [provider, riskProfile, sectors]);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [dataProvider, riskProfile, sectors]);
 
   const toggleWatchlist = (symbol: string) => {
     setWatchlist((current) => {
@@ -101,11 +239,13 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider = marketDa
       watchlist,
       riskProfile,
       sectors,
+      apiKey,
       toggleWatchlist,
       updateRiskProfile: setRiskProfile,
+      updateApiKey,
       setSectors
     }),
-    [loading, quotes, recommendations, summary, watchlist, riskProfile, sectors]
+    [loading, quotes, recommendations, summary, watchlist, riskProfile, sectors, apiKey, updateApiKey]
   );
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
