@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.v1 import backtests, health, market, rankings
+from .api.v1 import alerts, backtests, health, market, rankings
 from .core.config import settings
 from .services.providers import MassiveProvider
 
@@ -50,6 +50,7 @@ def create_app() -> FastAPI:
   app.include_router(market.router, prefix="/v1", tags=["market"])
   app.include_router(rankings.router, prefix="/v1", tags=["rankings"])
   app.include_router(backtests.router, prefix="/v1", tags=["backtests"])
+  app.include_router(alerts.router, prefix="/v1", tags=["alerts"])
 
   return app
 

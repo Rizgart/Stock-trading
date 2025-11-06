@@ -190,3 +190,31 @@ button:hover {
 .bullets li + li {
   margin-top: 0.5rem;
 }
+
+.alerts-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #e2e8f0;
+}
+
+.alerts-table th,
+.alerts-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  text-align: left;
+}
+
+.alerts-table th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.alerts-table button {
+  background: none;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+}

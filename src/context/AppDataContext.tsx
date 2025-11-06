@@ -7,7 +7,11 @@ import React, {
   useMemo,
   useState
 } from 'react';
-import { buildRecommendations, type StockRecommendation } from '../analysis/ranking';
+import {
+  buildRecommendations,
+  type StockRecommendation,
+  type RecommendationSignal
+} from '../analysis/ranking';
 import {
   createMarketDataProvider,
   type MarketSummary,
@@ -16,6 +20,14 @@ import {
   type HistoricalCandle,
   type FundamentalSnapshot
 } from '../services/marketData';
+import {
+  fetchAlerts,
+  createAlert,
+  deleteAlert,
+  type AlertItem,
+  type CreateAlertPayload
+} from '../services/alerts';
+import { fetchRankings, type RankingResponse } from '../services/backend';
 
 export type RiskProfile = 'konservativ' | 'balanserad' | 'aggressiv';
 
@@ -36,11 +48,15 @@ interface AppState {
   apiKey: string;
   apiBaseUrl: string;
   symbolLimit: number;
+  alerts: AlertItem[];
   toggleWatchlist: (symbol: string) => void;
   updateRiskProfile: (profile: RiskProfile) => void;
   updateApiKey: (apiKey: string) => void;
   updateApiBaseUrl: (url: string) => void;
   updateSymbolLimit: (limit: number) => void;
+  refreshAlerts: () => Promise<void>;
+  addAlert: (payload: CreateAlertPayload) => Promise<void>;
+  removeAlert: (id: string) => Promise<void>;
   fetchQuoteByName: (name: string) => Promise<StockQuote | null>;
   setSectors: React.Dispatch<React.SetStateAction<string[]>>;
 }
@@ -74,7 +90,7 @@ const API_KEY_STORAGE_KEY = 'aktietipset.finnhubApiKey';
 const SYMBOL_LIMIT_STORAGE_KEY = 'aktietipset.symbolLimit';
 const API_BASE_URL_STORAGE_KEY = 'aktietipset.apiBaseUrl';
 const DEFAULT_SYMBOL_LIMIT = 150;
-const DEFAULT_API_BASE_URL = 'https://api.massive.com';
+const DEFAULT_API_BASE_URL = 'http://localhost:8000';
 
 const readStoredApiKey = (): string => {
   if (typeof window === 'undefined') {
@@ -177,14 +193,15 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
   const [apiKey, setApiKey] = useState<string>(() => readStoredApiKey());
   const [apiBaseUrl, setApiBaseUrl] = useState<string>(() => readStoredApiBaseUrl());
   const [symbolLimit, setSymbolLimit] = useState<number>(() => readStoredSymbolLimit());
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
   const dataProvider = useMemo(() => {
     if (provider) {
       return provider;
     }
 
-    return createMarketDataProvider(apiKey || undefined, { symbolLimit, apiBaseUrl });
-  }, [provider, apiKey, apiBaseUrl, symbolLimit]);
+    return createMarketDataProvider(apiKey || undefined, { symbolLimit });
+  }, [provider, apiKey, symbolLimit]);
 
   useEffect(() => {
     if (provider) {
@@ -257,6 +274,31 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
     });
   }, []);
 
+  const refreshAlerts = useCallback(async () => {
+    try {
+      const items = await fetchAlerts(apiBaseUrl, apiKey);
+      setAlerts(items);
+    } catch (error) {
+      console.warn('Kunde inte uppdatera larm', error);
+    }
+  }, [apiBaseUrl, apiKey]);
+
+  const handleAddAlert = useCallback(
+    async (payload: CreateAlertPayload) => {
+      const created = await createAlert(apiBaseUrl, apiKey, payload);
+      setAlerts((current) => [...current, created]);
+    },
+    [apiBaseUrl, apiKey]
+  );
+
+  const handleRemoveAlert = useCallback(
+    async (id: string) => {
+      await deleteAlert(apiBaseUrl, apiKey, id);
+      setAlerts((current) => current.filter((item) => item.id !== id));
+    },
+    [apiBaseUrl, apiKey]
+  );
+
   const fetchQuoteByName = useCallback(
     async (name: string): Promise<StockQuote | null> => {
       const query = name.trim();
@@ -306,6 +348,10 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
     },
     [dataProvider, quotes]
   );
+
+  useEffect(() => {
+    void refreshAlerts();
+  }, [refreshAlerts]);
 
   useEffect(() => {
     let active = true;
@@ -447,11 +493,15 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
       apiKey,
       apiBaseUrl,
       symbolLimit,
+      alerts,
       toggleWatchlist,
       updateRiskProfile: setRiskProfile,
       updateApiKey,
       updateApiBaseUrl,
       updateSymbolLimit,
+      refreshAlerts,
+      addAlert: handleAddAlert,
+      removeAlert: handleRemoveAlert,
       fetchQuoteByName,
       setSectors
     }),
@@ -466,9 +516,13 @@ export const AppDataProvider: React.FC<Props> = ({ children, provider }) => {
       apiKey,
       apiBaseUrl,
       symbolLimit,
+      alerts,
       updateApiKey,
       updateApiBaseUrl,
       updateSymbolLimit,
+      refreshAlerts,
+      handleAddAlert,
+      handleRemoveAlert,
       fetchQuoteByName
     ]
   );

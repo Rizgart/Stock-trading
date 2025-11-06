@@ -62,7 +62,7 @@ const SettingsView: React.FC = () => {
             <span>API-bas-URL</span>
             <input
               type="url"
-              placeholder="https://api.massive.com"
+              placeholder="http://localhost:8000"
               value={urlValue}
               onChange={(event) => {
                 setUrlValue(event.target.value);
@@ -70,7 +70,7 @@ const SettingsView: React.FC = () => {
               }}
               onBlur={(event) => updateApiBaseUrl(event.currentTarget.value)}
             />
-            <small>Ange grundadressen till det marknadsdata-API du vill använda.</small>
+            <small>Ange backend-API:ets basadress (t.ex. FastAPI-server på http://localhost:8000).</small>
           </label>
           <label>
             <span>API-nyckel</span>

@@ -7,6 +7,7 @@ const navItems = [
   { to: '/', label: 'Dashboard' },
   { to: '/rekommendationer', label: 'Rekommendationer' },
   { to: '/watchlist', label: 'Watchlist' },
+  { to: '/alerts', label: 'Larm' },
   { to: '/inställningar', label: 'Inställningar' }
 ];
 
