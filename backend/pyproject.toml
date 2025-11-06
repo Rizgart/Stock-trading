@@ -17,10 +17,10 @@ sqlalchemy = "^2.0.29"
 alembic = "^1.13.1"
 redis = "^5.0.3"
 orjson = "^3.10.0"
-
-[tool.poetry.group.analysis.dependencies]
 pandas = "^2.2.1"
 numpy = "^1.26.4"
+
+[tool.poetry.group.analysis.dependencies]
 scikit-learn = "^1.4.1"
 pandas-ta = "^0.3.14b0"
 
@@ -30,6 +30,7 @@ pytest-asyncio = "^0.23.5"
 ruff = "^0.3.2"
 black = "^24.2.0"
 mypy = "^1.8.0"
+respx = "^0.20.2"
 
 [tool.poetry.scripts]
 aktie-api = "src.app.main:run"

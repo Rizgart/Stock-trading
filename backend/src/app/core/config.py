@@ -20,6 +20,10 @@ class Settings(BaseSettings):
         env="CORS_ALLOW_ORIGINS",
     )
 
+    massive_api_key: str = Field(default="", env="MASSIVE_API_KEY")
+    massive_base_url: str = Field(default="https://api.massive.com", env="MASSIVE_BASE_URL")
+    massive_rate_limit_interval: float = Field(default=0.25, env="MASSIVE_RATE_LIMIT_INTERVAL")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
