@@ -2,15 +2,34 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAppData } from '../context/AppDataContext';
 
 const SettingsView: React.FC = () => {
-  const { riskProfile, updateRiskProfile, apiKey, updateApiKey } = useAppData();
+  const {
+    riskProfile,
+    updateRiskProfile,
+    apiKey,
+    updateApiKey,
+    apiBaseUrl,
+    updateApiBaseUrl,
+    symbolLimit,
+    updateSymbolLimit
+  } = useAppData();
   const [language, setLanguage] = useState<'sv' | 'en'>('sv');
   const [formValue, setFormValue] = useState('');
   const [status, setStatus] = useState<'idle' | 'saved'>('idle');
   const resetTimerRef = useRef<number | null>(null);
+  const [limitValue, setLimitValue] = useState<string>('');
+  const [urlValue, setUrlValue] = useState('');
 
   useEffect(() => {
     setFormValue(apiKey ?? '');
   }, [apiKey]);
+
+  useEffect(() => {
+    setLimitValue(String(symbolLimit));
+  }, [symbolLimit]);
+
+  useEffect(() => {
+    setUrlValue(apiBaseUrl ?? '');
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     return () => {
@@ -23,6 +42,7 @@ const SettingsView: React.FC = () => {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     updateApiKey(formValue);
+    updateApiBaseUrl(urlValue);
     setStatus('saved');
     if (resetTimerRef.current) {
       window.clearTimeout(resetTimerRef.current);
@@ -39,7 +59,21 @@ const SettingsView: React.FC = () => {
         </header>
         <form className="form" onSubmit={handleSubmit}>
           <label>
-            <span>API-nyckel (Finnhub)</span>
+            <span>API-bas-URL</span>
+            <input
+              type="url"
+              placeholder="https://api.massive.com"
+              value={urlValue}
+              onChange={(event) => {
+                setUrlValue(event.target.value);
+                setStatus('idle');
+              }}
+              onBlur={(event) => updateApiBaseUrl(event.currentTarget.value)}
+            />
+            <small>Ange grundadressen till det marknadsdata-API du vill använda.</small>
+          </label>
+          <label>
+            <span>API-nyckel</span>
             <input
               type="password"
               placeholder="Klistra in din API-nyckel"
@@ -56,7 +90,44 @@ const SettingsView: React.FC = () => {
           <button type="submit" className="primary">
             Spara nyckel
           </button>
-          {status === 'saved' ? <span className="success-text">Nyckeln sparades! Data laddas om automatiskt.</span> : null}
+          {status === 'saved' ? (
+            <span className="success-text">Nyckeln sparades! Data laddas om automatiskt.</span>
+          ) : null}
+          <label>
+            <span>Max antal symboler per uppdatering</span>
+            <input
+              type="number"
+              min={25}
+              max={2000}
+              step={25}
+              value={limitValue}
+              onChange={(event) => {
+                setLimitValue(event.target.value);
+                setStatus('idle');
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  const parsed = Number.parseInt(event.currentTarget.value, 10);
+                  if (!Number.isNaN(parsed)) {
+                    updateSymbolLimit(parsed);
+                  }
+                }
+              }}
+              onBlur={(event) => {
+                const parsed = Number.parseInt(event.currentTarget.value, 10);
+                if (!Number.isNaN(parsed)) {
+                  updateSymbolLimit(parsed);
+                } else {
+                  setLimitValue(String(symbolLimit));
+                }
+              }}
+            />
+            <small>
+              Appen laddar symboler i omgångar för att respektera API:ets rate limits. Öka värdet om du har en högre
+              plan och vill läsa in fler samtidigt.
+            </small>
+          </label>
           <label>
             <span>Språk</span>
             <select value={language} onChange={(event) => setLanguage(event.target.value as 'sv' | 'en')}>

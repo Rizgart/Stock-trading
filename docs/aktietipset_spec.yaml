@@ -10,12 +10,8 @@ app:
       - Android
   ui_framework:
     desktop: "Electron eller Tauri + React"
-    mobile_optioner:
-      - React Native
-      - Flutter
-  languages:
-    - sv
-    - en
+    mobile_optioner: ["React Native", "Flutter"]
+  languages: ["sv", "en"]
 
 core_features:
   - "Ge tips om vilka aktier man ska köpa (rekommendationslista)."
@@ -41,11 +37,7 @@ analysis_engine:
       - "Värdering mot historiskt snitt"
       - "Tillväxt & lönsamhet"
     ranking_modell:
-      input:
-        - tekniska signaler
-        - fundamentala nyckeltal
-        - risk/volatilitet
-        - likviditet
+      input: ["tekniska signaler", "fundamentala nyckeltal", "risk/volatilitet", "likviditet"]
       output: "Score 0–100 + köp/behåll/sälj-signal"
       förklarbarhet: "Visa top-3 faktorer bakom varje rekommendation"
   frekvens:
@@ -62,12 +54,8 @@ data_integration:
     - "Hantering av rate limits & caching"
     - "Retrier & backoff"
   adapter_gränssnitt:
-    - name: MarketDataProvider
-      methods:
-        - get_quotes
-        - get_history
-        - get_fundamentals
-        - search_ticker
+    - name: "MarketDataProvider"
+      methods: ["get_quotes", "get_history", "get_fundamentals", "search_ticker"]
   caching:
     strategi: "In-memory + lokal SQLite"
     ttl:
@@ -80,10 +68,7 @@ portfolio_uppföljning:
     - "P&L, avkastning, riskmått (beta, max drawdown)"
     - "Alert-regler (prisnivå, procent, indikator-korsning)"
   notiser:
-    kanaler:
-      - in-app
-      - desktop push
-      - "e-post (valfritt)"
+    kanaler: ["in-app", "desktop push", "e-post (valfritt)"]
     tyst_läge: true
 
 ui_ux:
@@ -93,34 +78,44 @@ ui_ux:
     - "Aktiedetaljvy (graf, nyckeltal, signaler, motivering)"
     - "Watchlist/Portfölj"
     - "Inställningar (API-nycklar, riskprofil, språk)"
-  tillgänglighet:
-    - tangentbordsnavigering
-    - kontrastläge
-    - textstorlek
+  tillgänglighet: ["tangentbordsnavigering", "kontrastläge", "textstorlek"]
 
 säkerhet_integritet:
   auth: "Lokal krypterad lagring av tokens (Keychain/DPAPI)"
   data: "Endast nödvändig lagring, kryptering at-rest & in-transit (TLS)"
-  regelefterlevnad:
-    - "GDPR (samtycke, radera data)"
-    - "MiFID-ansvarsfriskrivning"
+  regelefterlevnad: ["GDPR (samtycke, radera data)", "MiFID-ansvarsfriskrivning"]
 
 arkitektur:
-  lager:
-    - "UI (React)"
-    - "App-logik (TypeScript)"
-    - "Analysmotor (TypeScript/Node eller Python via gRPC/IPC)"
-    - "Datakälla-adaptrar"
-    - "Lokal databas (SQLite)"
-  modulära_gränssnitt:
-    - DataProvider
-    - ScoringService
-    - NotificationService
-  mobil_expansion:
-    delade_komponenter:
-      - "Affärslogik"
-      - "Analys via backend/mikrotjänst"
-    backend_api: "REST/GraphQL för mobila klienter (om behövs)"
+  frontend:
+    desktop:
+      framework: "React + Tauri"
+      language: "TypeScript"
+      description: "Huvudgränssnittet för Mac och Windows, snabb och säker med direkt tillgång till lokala resurser."
+    mobile:
+      framework: "React Native"
+      language: "TypeScript"
+      description: "Delar UI-komponenter och logik från desktopversionen för enkel mobilanpassning."
+  backend:
+    api:
+      framework: "FastAPI"
+      language: "Python"
+      description: "Backend-API som hanterar databehandling, autentisering och integration med externa API:er som Massive och Nordnet."
+  analysis_engine:
+    language: "Python"
+    framework: "FastAPI / gRPC"
+    libraries: ["pandas", "numpy", "scikit-learn", "ta-lib"]
+    description: "Kärnlogiken som bearbetar och analyserar aktiedata, beräknar ranking och rekommendationer."
+  database:
+    local: "SQLite"
+    remote: "PostgreSQL"
+    description: "SQLite används lokalt för cachelagring, PostgreSQL i moln för större dataset och användarsynkronisering."
+  communication:
+    protocol: "REST eller gRPC"
+    description: "Kommunikation mellan analysmotorn och front-end sker via säkra REST- eller gRPC-anrop."
+  architecture_pattern: "Modulär mikrotjänstarkitektur"
+  expansion:
+    cloud_integration: "AWS / Azure för framtida skalning och databehandling"
+    ml_pipeline: "Planerad integrering av ML-modell för prediktiva köp/sälj-signaler"
 
 prestanda_krav:
   uppstartstid_ms: 1500
@@ -130,30 +125,16 @@ prestanda_krav:
 
 kvalitet_test:
   enhetstester: "80% täckning kärnlogik"
-  e2e:
-    - "kritiska flöden: import, ranking, alert"
+  e2e: ["kritiska flöden: import, ranking, alert"]
   backtesting:
-    perioder:
-      - 1y
-      - 3y
-      - 5y
-      - 10y
-    mått:
-      - CAGR
-      - Sharpe
-      - MaxDD
-      - WinRate
+    perioder: ["1y", "3y", "5y", "10y"]
+    mått: ["CAGR", "Sharpe", "MaxDD", "WinRate"]
     robusthet: "Walk-forward & out-of-sample"
 
 distribution:
-  paketering:
-    - "MSIX/EXE för Windows"
-    - "DMG för macOS (notarized)"
+  paketering: ["MSIX/EXE för Windows", "DMG för macOS (notarized)"]
   uppdateringar: "Auto-updates med signering"
-  miljöer:
-    - Dev
-    - Beta
-    - Prod
+  miljöer: ["Dev", "Beta", "Prod"]
 
 juridik_disclaimer:
   text: "Appen ger informations- och utbildningssyfte, ej personlig finansiell rådgivning. Historisk avkastning garanterar ej framtida resultat."
@@ -181,3 +162,99 @@ acceptanskriterier:
   - "Varje rekommendation visar kort motivering (top-3 faktorer)."
   - "Notiser triggas inom 10 sek efter villkor uppfylls."
   - "Backtest-rapport kan genereras för valfri lista med minst 5 års historik."
+
+bolagsanalys:
+  - "Företagets affärsmodell: Förstå hur företaget tjänar sina pengar och var de är verksamma (globalt eller lokalt)."
+  - "Framtidsutsikter: Bedöm bolagets potential och hur framtiden ser ut för dem."
+  - "Konkurrens: Undersök hur konkurrenssituationen ser ut för bolaget."
+  - "Ledning och skötsel: Kontrollera om bolaget verkar välskött och om ledningen är kompetent."
+
+nyckeltal:
+  - "P/E-tal (pris/vinst): Jämför bolagets aktiekurs med vinsten per aktie för att bedöma om den är billig eller dyr."
+  - "Beta: Mät aktiens volatilitet (svängningar) i förhållande till börsen i stort för att förstå risknivån."
+  - "Utdelning: Titta på utdelningen om du vill ha löpande intäkter, men kom ihåg att det inte är garanterat."
+
+riskspridning_och_strategi:
+  - "Investeringsstrategi: Definiera din egen strategi innan du börjar köpa."
+  - "Riskspridning: Köp aktier i bolag från olika branscher och länder för att minska risken."
+  - "Långsiktighet: Tänk långsiktigt och undvik att försöka tajma marknaden. Regelbundet månadssparande är ett bra sätt att komma igång."
+
+kostnader:
+  - "Courtage: Var medveten om de avgifter du betalar för varje affär."
+  - "Valutaväxlingsavgift: Om du köper utländska aktier tillkommer en avgift för valutaväxling."
+
+api_integration:
+  massive_api:
+    description: "All respons ska hämtas från Massive API som primär källa."
+    example_rest_endpoint: "https://api.massive.com/v3/reference/tickers?market=stocks&active=true&order=asc&limit=100&sort=ticker&apiKey=vOK6NLOAmQ_z7xnXiCNisVIoq5mFa86q"
+
+data_mapping:
+  description: "Definierar hur data från Massive API mappas till interna objekt och analysmodellen."
+  input_source: "Massive API - /v3/reference/tickers"
+  schema:
+    ticker:
+      type: string
+      description: "Kortnamn på aktien (t.ex. AAPL). Används som primär nyckel i analysmodellen."
+    name:
+      type: string
+      description: "Företagsnamn eller fondnamn."
+    market:
+      type: string
+      description: "Marknadstyp (ex. stocks, crypto, forex)."
+    locale:
+      type: string
+      description: "Språk/regionkod (t.ex. 'us' eller 'se')."
+    primary_exchange:
+      type: string
+      description: "Börs där instrumentet handlas (t.ex. XNAS, XNYS, ARCX)."
+    type:
+      type: string
+      description: "Instrumenttyp, t.ex. CS (Common Stock), ETF, ADRC, WARRANT."
+    active:
+      type: boolean
+      description: "Visar om tillgången är aktiv."
+    currency_name:
+      type: string
+      description: "Valuta som tillgången handlas i, t.ex. USD eller SEK."
+    cik:
+      type: string
+      description: "SEC CIK-identifierare om tillgänglig. Kan användas för bolagskoppling."
+    composite_figi:
+      type: string
+      description: "Bloomberg Global Identifier (BBG). Unik global identifierare för värdepappret."
+    share_class_figi:
+      type: string
+      description: "Bloomberg identifierare för specifik aktieklass."
+    last_updated_utc:
+      type: datetime
+      description: "Tidpunkt då datan senast uppdaterades i UTC-format."
+  mapping_logic:
+    identifier_priority: ["ticker", "composite_figi", "cik"]
+    normalization:
+      - "Trimma och validera ticker-format (A–Z0–9)"
+      - "Konvertera datumfält till ISO8601 och UTC"
+      - "Valutaomvandling vid behov baserat på användarens portföljinställningar"
+    enrichment:
+      - "Hämta historisk prisdata för varje ticker via separat endpoint"
+      - "Slå upp bolagsdata (sektor, bransch, land)"
+      - "Kombinera med interna ranking-signaler (trend, fundamenta, sentiment)"
+  integration_pipeline:
+    steps:
+      - fetch_api_data
+      - validate_schema
+      - transform_to_internal_model
+      - enrich_with_marketdata
+      - score_and_rank
+      - persist_to_local_cache
+    output_model: "StockEntity"
+    example_output:
+      ticker: "AAPL"
+      name: "Apple Inc."
+      market: "stocks"
+      exchange: "XNAS"
+      currency: "USD"
+      active: true
+      last_updated: "2025-11-06T07:05:49Z"
+      score: 87
+      signal: "BUY"
+      reasoning: ["Stark momentum", "Låg volatilitet", "Positiv vinsttrend"]

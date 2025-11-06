@@ -1,0 +1,1 @@
+"""AktieTipset backend package."""
